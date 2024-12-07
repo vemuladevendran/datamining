@@ -1,0 +1,314 @@
+---
+title: "Childcare Cost Analysis"
+subtitle: "INFO 523 - Project 1"
+author:
+  - name: "Devendran Vemula"
+format: html
+editor: visual
+execute:
+  echo: false
+  message: false
+  error: false
+---
+
+```{r}
+#| label: load-packages
+#| include: false
+
+# Load necessary packages
+pacman::p_load(
+  tidymodels,
+  tidyverse,
+  dplyr,
+  ggplot2,
+  here,
+  tidyr,
+  plotly,
+  patchwork,
+  sf,
+  usmap, 
+  leaflet
+)
+
+# Install and load additional package
+devtools::install_github("UrbanInstitute/urbnmapr")
+library(urbnmapr)
+
+```
+
+```{r}
+
+#| label: setup
+#| include: false
+
+# Plot theme
+ggplot2::theme_set(ggplot2::theme_minimal(base_size = 11))
+
+
+# Loading Dataset
+child_cost <- read.csv(here('data','childcare_costs.csv'))
+counties <- read.csv(here('data','counties.csv'))
+
+counties_data <- counties
+childcare_data <- child_cost
+
+
+
+```
+
+## Abstract
+
+The project investigates the intricate dynamics between childcare costs, unemployment rates, and poverty levels across various regions in the United States. Utilizing two primary datasets—the National Database of Childcare Prices (NDCP) and a comprehensive Counties Dataset—the analysis employs spatial mapping techniques to visualize mean unemployment rates and family poverty rates, as well as correlations between unemployment rates and poverty levels at the county and state levels. The findings reveal significant regional variations in unemployment rates, highlighting gender disparities, and underscore the correlation between unemployment rates and poverty levels. Furthermore, the project identifies regions with elevated family poverty rates and explores the relationship between family poverty rates and cumulative childcare costs. The results emphasize the economic challenges faced by families, especially in areas where childcare expenses intersect with high poverty rates. The project concludes with insights into future trends and the potential for integrating predictive modeling techniques and qualitative research methods to inform more effective policy interventions aimed at supporting families across the nation.
+
+## Introduction
+
+The United States faces persistent challenges related to childcare affordability, unemployment rates, and poverty levels, which have profound implications for family well-being and economic stability. Understanding the complex interplay between these factors is crucial for policymakers, researchers, and practitioners seeking to develop effective interventions to support families and communities.
+
+This project aims to investigate the multifaceted relationship between childcare costs, unemployment rates, and poverty levels across diverse regions in the United States. Two primary datasets are utilized: the National Database of Childcare Prices (NDCP), providing comprehensive childcare price data spanning from 2008 to 2018, and a Counties Dataset offering geographical and demographic insights.
+
+The analysis approach involves utilizing spatial mapping techniques to visualize mean unemployment rates, family poverty rates, and correlations between unemployment rates and poverty levels at both the county and state levels. By leveraging these datasets and visualization methods, the project seeks to uncover regional disparities in unemployment rates, gender discrepancies, and the economic burden faced by families due to childcare expenses.
+
+The insights generated from this investigation have the potential to inform policymakers, researchers, and stakeholders about the socio-economic challenges faced by families across different regions of the United States. By understanding these dynamics, policymakers can develop targeted interventions to alleviate economic hardships and promote greater equity and prosperity for families nationwide.
+
+
+## Dataset Information
+
+### 1. [Childcare Costs Dataset](https://github.com/rfordatascience/tidytuesday/blob/master/data/2023/2023-05-09/childcare_costs.csv)
+
+-   **Source:** The National Database of Childcare Prices (NDCP)
+-   **Description:** This dataset is the most comprehensive federal source of childcare prices at the county level. It provides childcare price data by childcare provider type, age of children, and county characteristics. The data spans from 2008 to 2018, offering estimates of childcare prices at the county level for different age groups and care settings, including home-based and center-based providers.
+
+### 2. [Counties Dataset](https://github.com/rfordatascience/tidytuesday/blob/master/data/2023/2023-05-09/counties.csv)
+
+-   **Description:** This dataset contains geographical information for each county, and it will be used for spatial plotting.
+
+
+
+#### Question
+Analyze factors affecting childcare costs across counties and predict high-cost regions.
+
+
+#### Number of ROWs and COLUMNs before cleaning data
+```{r}
+
+cat("Total Rows: ", nrow(childcare_data), "\n")
+cat("Total Columns: ", ncol(childcare_data), "\n")
+```
+
+
+#### Data Cleaning
+
+Removed the unwanted rows by removing all NA and error data.
+```{r}
+# Data Cleaning
+childcare_data <- childcare_data %>% drop_na()
+
+childcare_data <- childcare_data %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .)))
+```
+
+
+Data Exploration 
+```{r}
+# Preview the data
+
+childcare_data|>glimpse()
+
+```
+
+#### Number of ROWs and COLUMNs after cleaning data
+
+
+```{r}
+
+cat("Total Rows: ", nrow(childcare_data), "\n")
+cat("Total Columns: ", ncol(childcare_data), "\n")
+
+```
+
+
+Selecting only revelent column that need for project
+
+```{r}
+
+# Select only relevant columns
+childcare_data <- childcare_data %>%
+  select(county_fips_code, study_year, unr_16, funr_16, munr_16, mhi_2018, total_pop, mc_infant, mc_toddler, mc_preschool,mfcc_infant,mfcc_toddler,mfcc_preschool, pr_f)
+
+
+```
+
+
+We removed all rows where the study year is greater than 2015 due to the limited data available. This ensures more accurate analysis by focusing on years with sufficient data.
+
+```{r}
+# Remove rows based on criteria (e.g., year > 2015)
+childcare_data <- childcare_data %>%
+  filter(study_year > 2015)
+
+# View summary of cleaned dataset
+summary(childcare_data)
+
+
+```
+
+#### Number of ROWs and COLUMNs after selecting only relevent data.
+
+
+```{r}
+
+cat("Total Rows: ", nrow(childcare_data), "\n")
+cat("Total Columns: ", ncol(childcare_data), "\n")
+
+```
+
+```{r}
+# Check for missing values
+colSums(is.na(childcare_data))
+```
+
+### Univariate Analysis (Histograms & Boxplots)
+
+    - Distribution of Childcare Costs (Infant, Toddler, Preschool):
+
+```{r}
+
+# Histogram for infant childcare costs
+p1 <- ggplot(childcare_data, aes(x = mc_infant)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Distribution of Infant Childcare Costs", x = "Cost ($)", y = "Count")
+
+# Convert to an interactive plotly object
+plotly::ggplotly(p1)
+
+```
+
+    - Boxplot of Unemployment Rates (unr_16, funr_16, munr_16):
+
+```{r}
+# Boxplot comparison of unemployment rates
+p2 <- childcare_data %>%
+  pivot_longer(cols = c(unr_16, funr_16, munr_16), names_to = "Unemployment_Type", values_to = "Rate") %>%
+  ggplot(aes(x = Unemployment_Type, y = Rate, fill = Unemployment_Type)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Unemployment Rate Distribution by Type", y = "Unemployment Rate (%)", x = "")
+
+# Convert to an interactive plotly object
+plotly::ggplotly(p2)
+
+```
+
+
+1. Spatial Analysis: Interactive Map for Childcare Costs by County
+
+
+```{r}
+
+str(childcare_data)
+
+
+childcare_data <- childcare_data %>%
+  mutate(cumulative_childcare_costs = mc_infant + mc_toddler + mc_preschool + mfcc_infant + mfcc_toddler + mfcc_preschool)
+
+merged_childcare_data <- left_join(childcare_data, counties_data, by = "county_fips_code")
+
+
+# Calculate average cumulative childcare costs at the state level
+average_childcare_costs_state <- merged_childcare_data %>%
+  group_by(state_name) %>%
+  summarise(avg_childcare_costs_state = mean(cumulative_childcare_costs, na.rm = TRUE)) 
+
+# Get US states map
+states_map <- get_urbn_map("states", sf = TRUE)
+
+# Merge data for visualization
+merged_data_childcare_costs_state <- left_join(states_map, average_childcare_costs_state, by = c("state_name" = "state_name"))
+
+
+interactive_map <- ggplotly(
+  ggplot(data = merged_data_childcare_costs_state, aes(fill = avg_childcare_costs_state, color = state_name)) +
+    geom_sf(size = 0.2) +
+    geom_sf_text(aes(label = state_name), size = 3, check_overlap = TRUE) +
+    scale_fill_gradient(low = "lightgreen", high = "yellow", na.value="#d0f75e", name = "Avg Childcare Costs") +
+    labs(title = "Average Cumulative Childcare Costs by State", subtitle = "Differentiated by State") +
+    theme_minimal() +
+    theme(axis.text = element_blank(), axis.title = element_blank()) +
+    guides(color = FALSE),
+  tooltip = c("state_name", "avg_childcare_costs_state")
+)
+
+interactive_map
+
+
+```
+
+
+
+
+```{r}
+
+# Calculate average family poverty rate at county level
+average_poverty_county <- childcare_data %>%
+  group_by(county_fips_code) %>%
+  summarise(avg_pr_f = mean(pr_f, na.rm = TRUE)) %>%
+  mutate(county_fips_code = as.character(county_fips_code))
+
+# Merge with US counties map
+counties_map <- get_urbn_map("counties")
+
+merged_data_county <- left_join(counties_map, average_poverty_county, by = c("county_fips" = "county_fips_code"))
+
+# Calculate average family poverty rate at state level
+average_poverty_state <- merged_data_county %>%
+  group_by(state_name) %>%
+  summarise(avg_pr_f_state = mean(avg_pr_f, na.rm = TRUE))
+
+
+# Merge with US counties map
+counties_map <- get_urbn_map("counties")
+
+merged_data_county <- left_join(counties_map, average_poverty_county, by = c("county_fips" = "county_fips_code"))
+
+# Calculate average family poverty rate at state level
+average_poverty_state <- merged_data_county %>%
+  group_by(state_name) %>%
+  summarise(avg_pr_f_state = mean(avg_pr_f, na.rm = TRUE))
+
+```
+
+
+```{r}
+
+# Fetch states map
+states_map <- get_urbn_map("states", sf = TRUE)
+
+# Merge data with states map
+merged_data_state <- left_join(states_map, average_poverty_state, by = c("state_name" = "state_name"))
+
+# Create the static map
+state_poverty_map <- ggplot(data = merged_data_state, aes(fill = avg_pr_f_state, geometry = geometry)) +
+  geom_sf(size = 0.2) +
+  geom_sf_text(aes(label = state_name), size = 3, check_overlap = TRUE) +
+  scale_fill_gradient(low = "lightblue", high = "darkblue", na.value = "#767abe", name = "Avg Family Poverty Rate") +
+  labs(
+    title = "Average Family Poverty Rate by State",
+    subtitle = "Differentiated by State",
+    caption = "Source: NDCP"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text = element_blank(),
+    axis.title = element_blank()
+  ) +
+  guides(color = FALSE)
+
+# Convert to interactive map
+interactive_state_poverty_map <- ggplotly(state_poverty_map, tooltip = c("fill", "state_name"))
+
+# Display the interactive map
+interactive_state_poverty_map
+
+
+```
