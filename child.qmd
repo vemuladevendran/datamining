@@ -9,6 +9,7 @@ execute:
   echo: false
   message: false
   error: false
+  warning: false
 ---
 
 ```{r}
@@ -27,7 +28,11 @@ pacman::p_load(
   patchwork,
   sf,
   usmap, 
-  leaflet
+  leaflet,
+  arules,
+  arulesViz,
+  visNetwork,
+  cluster
 )
 
 # Install and load additional package
@@ -241,7 +246,6 @@ interactive_map <- ggplotly(
 
 interactive_map
 
-
 ```
 
 
@@ -312,3 +316,249 @@ interactive_state_poverty_map
 
 
 ```
+
+
+1. Association Analysis
+
+
+- Purpose:
+
+    The numeric columns (unr_16, funr_16, etc.) are discretized into categorical bins using the cut() function. For example:
+        Low: Bottom third of values.
+        Medium: Middle third of values.
+        High: Top third of values.
+    The result is a dataset of categorical variables suitable for association rule mining.
+
+- Columns selected:
+
+    Unemployment rates (unr_16, funr_16, munr_16), median household income (mhi_2018), and total population (total_pop).
+
+
+```{r}
+# Step 1: Discretize numeric columns into categorical ranges
+categorical_data <- childcare_data %>%
+  mutate(
+    unr_16 = cut(unr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    funr_16 = cut(funr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    munr_16 = cut(munr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    mhi_2018 = cut(mhi_2018, breaks = 3, labels = c("Low", "Medium", "High")),
+    total_pop = cut(total_pop, breaks = 3, labels = c("Low", "Medium", "High"))
+  ) %>%
+  select(unr_16, funr_16, munr_16, mhi_2018, total_pop)
+
+# Step 2: Convert to transaction format
+transactions <- as(categorical_data, "transactions")
+summary(transactions)  # Check the transactions data
+
+# Step 3: Apply the Apriori algorithm
+rules <- apriori(transactions, parameter = list(supp = 0.01, conf = 0.5))
+
+# Step 4: Inspect the generated rules
+inspect(sort(rules, by = "lift")[1:10])  # Top 10 rules sorted by lift
+
+# Step 5: Visualize the rules
+# Graph-based visualization
+plot(rules, method = "graph", control = list(type = "items"))
+
+# Interactive scatterplot visualization
+plot(rules, method = "scatterplot", measure = c("support", "confidence"), shading = "lift")
+
+```
+
+## Eclat Algorithm
+
+```{r}
+# Step 1: Discretize numeric columns into categorical ranges
+categorical_data <- childcare_data %>%
+  mutate(
+    unr_16 = cut(unr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    funr_16 = cut(funr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    munr_16 = cut(munr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    mhi_2018 = cut(mhi_2018, breaks = 3, labels = c("Low", "Medium", "High")),
+    total_pop = cut(total_pop, breaks = 3, labels = c("Low", "Medium", "High"))
+  ) %>%
+  select(unr_16, funr_16, munr_16, mhi_2018, total_pop)
+
+# Step 2: Convert to transaction format
+transactions <- as(categorical_data, "transactions")
+summary(transactions)  # Check the transactions data
+
+# Step 3: Apply the Eclat algorithm to find frequent itemsets
+frequent_itemsets <- eclat(transactions, parameter = list(supp = 0.01, maxlen = 5))
+
+# Step 4: Inspect frequent itemsets
+inspect(sort(frequent_itemsets, by = "support")[1:10])  # Top 10 frequent itemsets sorted by support
+
+# Step 5: Visualize the frequent itemsets
+# Plot frequent itemsets
+itemFrequencyPlot(transactions, topN = 10, col = "steelblue", main = "Top 10 Frequent Items")
+plot(frequent_itemsets, method = "graph", control = list(type = "items"))
+
+# Scatterplot of itemsets
+plot(frequent_itemsets, method = "scatterplot", measure = c("support"), shading = "support")
+
+```
+
+### Explanation of Code
+
+    - Discretization:
+        The numeric columns are divided into "Low," "Medium," and "High" categories using cut().
+
+    - Transactions Conversion:
+        Convert the preprocessed data into a transaction format, required by arules.
+
+    - Eclat Algorithm:
+        eclat() generates frequent itemsets based on support.
+        Parameters:
+            supp = 0.01: Minimum support threshold (at least 1% of transactions must contain the itemset).
+            maxlen = 5: Maximum length of itemsets.
+
+    - Frequent Itemsets:
+        The output includes the most frequently occurring combinations of items.
+
+    - Visualization:
+        Item Frequency Plot: Displays the most frequent single items.
+        Graph-Based Visualization: Shows relationships among items within frequent itemsets.
+        Scatterplot: Highlights the support of frequent itemsets.
+
+
+
+Visualizations
+
+    Top 10 Frequent Items:
+        Bar plot showing the frequency of the most common items.
+
+    Graph Plot:
+        A network plot where nodes represent items, and edges indicate their co-occurrence in frequent itemsets.
+
+    Scatterplot:
+        Displays itemsets by their support.
+
+
+
+
+
+
+```{r}
+# Discretize numeric columns into categorical data (Low, Medium, High)
+categorical_data <- childcare_data %>%
+  mutate(
+    unr_16 = cut(unr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    funr_16 = cut(funr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    munr_16 = cut(munr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    mhi_2018 = cut(mhi_2018, breaks = 3, labels = c("Low", "Medium", "High")),
+    total_pop = cut(total_pop, breaks = 3, labels = c("Low", "Medium", "High"))
+  ) %>%
+  select(unr_16, funr_16, munr_16, mhi_2018, total_pop)
+
+# Convert the categorical data to factors and then numeric for clustering
+categorical_data[] <- lapply(categorical_data, factor)
+categorical_data[] <- lapply(categorical_data, as.numeric)
+
+# Apply K-medoids clustering
+set.seed(123)  # For reproducibility
+kmedoids_result <- pam(categorical_data, k = 3)  # k = number of clusters
+
+# View the result
+print(kmedoids_result)
+
+# Add cluster labels to the original data
+childcare_data$Cluster <- kmedoids_result$clustering
+
+# Inspect the clusters
+table(childcare_data$Cluster)
+
+# Visualize the clusters (Optional)
+plot(kmedoids_result)
+
+```
+
+
+Explanation of Code:
+K-medoids Clustering:
+
+    Step 1: Discretize the numeric variables into categorical values.
+    Step 2: Convert the categorical columns to numeric values, which is required for clustering.
+    Step 3: Apply the pam() function, which performs K-medoids clustering, where k = 3 specifies the number of clusters.
+    Step 4: The result is visualized, and the clusters are added back to the original data for further inspection.
+
+
+
+Plot Explanation:
+
+    Axes (Component 1 and Component 2):
+        These are the principal components resulting from a dimensionality reduction process like PCA (Principal Component Analysis) applied to your dataset.
+        Since your data likely has many variables, PCA simplifies the data into two components to visualize in a 2D space.
+
+    Clusters:
+        The different shapes (e.g., triangle, circle, cross) represent different clusters identified by the K-medoids algorithm.
+        Each shape corresponds to one of the three clusters (k = 3 in your case).
+
+    Ellipses:
+        The ellipses around the clusters show the spread or variability of data points within each cluster.
+        Tighter ellipses indicate that the points in the cluster are more compact and closely related.
+
+    Medoids (Cluster Centers):
+        The cluster centers (medoids) are the most representative data points within each cluster. They are marked by the shapes at the center of each cluster.
+
+    Pink Lines:
+        These lines connect data points to their respective medoids (cluster centers).
+        They indicate the assignment of each data point to its cluster.
+
+    Explained Variability:
+        The note at the bottom indicates that 64.61% of the variability in the dataset is explained by the two components plotted.
+        While this is a decent percentage, it suggests that there might be additional variability captured in higher dimensions not represented here.
+
+
+        
+
+
+```{r}
+
+
+categorical_data <- childcare_data %>%
+  mutate(
+    unr_16 = cut(unr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    funr_16 = cut(funr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    munr_16 = cut(munr_16, breaks = 3, labels = c("Low", "Medium", "High")),
+    mhi_2018 = cut(mhi_2018, breaks = 3, labels = c("Low", "Medium", "High")),
+    total_pop = cut(total_pop, breaks = 3, labels = c("Low", "Medium", "High"))
+  ) %>%
+  select(unr_16, funr_16, munr_16, mhi_2018, total_pop)
+
+# Convert the categorical data to factors and then numeric for clustering
+categorical_data[] <- lapply(categorical_data, factor)
+categorical_data[] <- lapply(categorical_data, as.numeric)
+
+# Hierarchical clustering using Euclidean distance
+diss_matrix <- dist(categorical_data, method = "euclidean")
+hc_result <- hclust(diss_matrix, method = "ward.D2")
+
+# Plot dendrogram
+plot(hc_result)
+
+# Cut the dendrogram to form clusters (e.g., 3 clusters)
+clusters <- cutree(hc_result, k = 3)
+
+# Add cluster labels to the original data
+childcare_data$Cluster <- clusters
+
+# Inspect the clusters
+table(childcare_data$Cluster)
+
+# Visualize clusters (Optional)
+plot(hc_result, labels = FALSE, hang = -1)
+rect.hclust(hc_result, k = 3, border = "red") 
+
+
+```
+
+Hierarchical Clustering:
+
+    Step 1: Discretize the numeric variables into categorical values.
+    Step 2: Convert the categorical columns to numeric values, which is required for clustering.
+    Step 3: Compute the distance matrix using dist() with Euclidean distance. This matrix is then used to perform hierarchical clustering using hclust().
+    Step 4: The dendrogram is plotted to visualize the hierarchical clustering. You can specify the number of clusters using cutree().
+    Step 5: Cluster labels are added to the dataset, and the clusters can be inspected
+
+
