@@ -32,7 +32,8 @@ pacman::p_load(
   arules,
   arulesViz,
   visNetwork,
-  cluster
+  cluster,
+  kohonen
 )
 
 # Install and load additional package
@@ -436,7 +437,7 @@ Visualizations
 
 
 
-
+###  K-medoids clustering
 
 
 ```{r}
@@ -510,8 +511,8 @@ Plot Explanation:
         While this is a decent percentage, it suggests that there might be additional variability captured in higher dimensions not represented here.
 
 
-        
 
+### Hierarchical clustering
 
 ```{r}
 
@@ -560,5 +561,6 @@ Hierarchical Clustering:
     Step 3: Compute the distance matrix using dist() with Euclidean distance. This matrix is then used to perform hierarchical clustering using hclust().
     Step 4: The dendrogram is plotted to visualize the hierarchical clustering. You can specify the number of clusters using cutree().
     Step 5: Cluster labels are added to the dataset, and the clusters can be inspected
+
 
 
